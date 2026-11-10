@@ -22,8 +22,8 @@ jobs:
           # Grabs raw HTML from the updates page
           HTML_DATA=$(curl -sL "https://ashtlsrezero.site/updates")
           
-          # Extracts the newest chapter heading cleanly without HTML tags
-          LATEST_CHAPTER=$(echo "$HTML_DATA" | grep -oE "Arc [0-9]+ Chapter [0-9]+[^<]*" | head -n 1)
+          # Extracts the newest chapter heading and converts HTML entities (like &#x27;) into normal characters
+          LATEST_CHAPTER=$(echo "$HTML_DATA" | grep -oE "Arc [0-9]+ Chapter [0-9]+[^<]*" | head -n 1 | python3 -c "import sys, html; print(html.unescape(sys.stdin.read().strip()))")
           
           if [ -n "$LATEST_CHAPTER" ]; then
             echo "Current live release: $LATEST_CHAPTER"
@@ -35,10 +35,10 @@ jobs:
               # Save the state instantly to prevent repeating
               echo "$LATEST_CHAPTER" > last_chapter.txt
               
-              # Build message cleanly
+              # Build message cleanly without EOF indentation issues
               MSG_CONTENT=$(printf "@everyone\n\nthe stars haven’t abandoned us! a new chapter has been translated ✨\n\n📖 **%s**\n🌐 https://ashtlsrezero.site/updates" "$LATEST_CHAPTER")
               
-              # Safely build payload escaped via jq
+              # Safely build payload escaped via jq (using your webhook's Discord avatar)
               JSON_PAYLOAD=$(jq -n --arg msg "$MSG_CONTENT" '{username: "Aldebaran", content: $msg}')
               
               # Fire directly to your channel hook secret
@@ -54,5 +54,5 @@ jobs:
               echo "No change found. Already handled."
             fi
           else
-            echo "Could not find any chapter text on the page. The site might require JavaScript to load."
+            echo "Could not find any chapter text on the page."
           fi
