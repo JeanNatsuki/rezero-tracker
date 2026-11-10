@@ -20,7 +20,7 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           # Grabs layout from the dedicated updates folder timeline
-          HTML_DATA=$(curl -sL "https://ashtlsrezero.site")
+          HTML_DATA=$(curl -sL "https://ashtlsrezero.site/updates")
           
           # Extracts the absolute newest text heading line cleanly without needing rigid character matching
           LATEST_CHAPTER=$(echo "$HTML_DATA" | grep -oE "### Arc [0-9]+ Chapter [0-9]+.*" | head -n 1 | sed 's/### //g' | cut -d'<' -f1)
@@ -42,7 +42,7 @@ jobs:
           the stars haven’t abandoned us! a new chapter has been translated ✨
           
           📖 **${LATEST_CHAPTER}**
-          🌐 https://ashtlsrezero.site
+          🌐 https://ashtlsrezero.site/updates
           EOF
           )
               
