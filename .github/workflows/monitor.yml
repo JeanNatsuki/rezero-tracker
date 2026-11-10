@@ -1,0 +1,54 @@
+name: Webnovel Translation Monitor
+on:
+  schedule:
+    - cron: '*/5 * * * *' # Automatically runs an internal sweep every 5 minutes
+  workflow_dispatch: # Allows you to manually trigger a test block
+
+jobs:
+  monitor-site:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo state
+        uses: actions/checkout@v4
+
+      - name: Fetch Updates and Ping Webhook
+        run: |
+          # Grabs layout from the dedicated updates folder timeline
+          HTML_DATA=$(curl -sL "https://ashtlsrezero.site/updates")
+          
+          # Extracts the absolute newest text heading line cleanly
+          LATEST_CHAPTER=$(echo "$HTML_DATA" | grep -oE "### Arc [0-9]+ Chapter [0-9]+:[^<]+" | head -n 1 | sed 's/### //g')
+          
+          if [ -n "$LATEST_CHAPTER" ]; then
+            echo "Current live release: $LATEST_CHAPTER"
+            
+            # Check against the last recorded update file stored in your repo
+            if [ ! -f last_chapter.txt ] || [ "$LATEST_CHAPTER" != "$(cat last_chapter.txt)" ]; then
+              echo "New chapter drop detected!"
+              
+              # Save the state instantly to prevent repeating
+              echo "$LATEST_CHAPTER" > last_chapter.txt
+              
+              # Construct payload with your custom phrase layout and @everyone text string
+              JSON_PAYLOAD=$(cat <<EOF
+              {
+                "username": "Aldebaran",
+                "avatar_url": "https://discordapp.com",
+                "content": "@everyone \n\nthe stars hasn’t abandoned us! a new chapter has been translated ✨\n\n📖 **$LATEST_CHAPTER**\n🌐 https://ashtlsrezero.site/updates"
+              }
+          EOF
+              )
+              
+              # Fire directly to your channel hook secret
+              curl -H "Content-Type: application/json" -X POST -d "$JSON_PAYLOAD" "${{ secrets.DISCORD_WEBHOOK }}"
+              
+              # Commit history state back to git tracking so the bot remembers next time
+              git config --global user.name "GitHub Actions"
+              git config --global user.email "actions@github.com"
+              git add last_chapter.txt
+              git commit -m "Update state: $LATEST_CHAPTER" || true
+              git push || true
+            else
+              echo "No change found. Already handled."
+            fi
+          fi
