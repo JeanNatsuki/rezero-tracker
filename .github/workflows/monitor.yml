@@ -29,15 +29,8 @@ jobs:
               # Save the state instantly to prevent repeating
               echo "$LATEST_CHAPTER" > last_chapter.txt
               
-              # Construct payload with your custom phrase layout and @everyone text string
-              JSON_PAYLOAD=$(cat <<EOF
-              {
-                "username": "Aldebaran",
-                "avatar_url": "https://discordapp.com",
-                "content": "@everyone \n\nthe stars hasn’t abandoned us! a new chapter has been translated ✨\n\n📖 **$LATEST_CHAPTER**\n🌐 https://ashtlsrezero.site/updates"
-              }
-          EOF
-              )
+              # Safely build payload via a standard single-line string to bypass mobile space formatting glitches
+              JSON_PAYLOAD="{\"username\": \"Aldebaran\", \"avatar_url\": \"https://discordapp.com\", \"content\": \"@everyone \\n\\nthe stars hasn’t abandoned us! a new chapter has been translated ✨\\n\\n📖 **${LATEST_CHAPTER}**\\n🌐 https://ashtlsrezero.site/updates\"}"
               
               # Fire directly to your channel hook secret
               curl -H "Content-Type: application/json" -X POST -d "$JSON_PAYLOAD" "${{ secrets.DISCORD_WEBHOOK }}"
