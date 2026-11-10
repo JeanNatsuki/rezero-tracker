@@ -19,11 +19,11 @@ jobs:
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          # Grabs layout from the dedicated updates folder timeline
+          # Grabs raw HTML from the updates page
           HTML_DATA=$(curl -sL "https://ashtlsrezero.site/updates")
           
-          # Extracts the absolute newest text heading line cleanly without needing rigid character matching
-          LATEST_CHAPTER=$(echo "$HTML_DATA" | grep -oE "### Arc [0-9]+ Chapter [0-9]+.*" | head -n 1 | sed 's/### //g' | cut -d'<' -f1)
+          # Extracts the newest chapter heading cleanly without HTML tags
+          LATEST_CHAPTER=$(echo "$HTML_DATA" | grep -oE "Arc [0-9]+ Chapter [0-9]+[^<]*" | head -n 1)
           
           if [ -n "$LATEST_CHAPTER" ]; then
             echo "Current live release: $LATEST_CHAPTER"
@@ -35,19 +35,11 @@ jobs:
               # Save the state instantly to prevent repeating
               echo "$LATEST_CHAPTER" > last_chapter.txt
               
-              # Safely handle single quotes and special characters via clean variables
-              MSG_CONTENT=$(cat <<EOF
-          @everyone 
-          
-          the stars haven’t abandoned us! a new chapter has been translated ✨
-          
-          📖 **${LATEST_CHAPTER}**
-          🌐 https://ashtlsrezero.site/updates
-          EOF
-          )
+              # Build message cleanly
+              MSG_CONTENT=$(printf "@everyone\n\nthe stars haven’t abandoned us! a new chapter has been translated ✨\n\n📖 **%s**\n🌐 https://ashtlsrezero.site/updates" "$LATEST_CHAPTER")
               
-              # Safely build payload escaped via jq to prevent shell execution failures
-              JSON_PAYLOAD=$(jq -n --arg msg "$MSG_CONTENT" '{username: "Aldebaran", avatar_url: "https://discordapp.com", content: $msg}')
+              # Safely build payload escaped via jq
+              JSON_PAYLOAD=$(jq -n --arg msg "$MSG_CONTENT" '{username: "Aldebaran", content: $msg}')
               
               # Fire directly to your channel hook secret
               curl -H "Content-Type: application/json" -X POST -d "$JSON_PAYLOAD" "$DISCORD_WEBHOOK_URL"
@@ -61,4 +53,6 @@ jobs:
             else
               echo "No change found. Already handled."
             fi
+          else
+            echo "Could not find any chapter text on the page. The site might require JavaScript to load."
           fi
