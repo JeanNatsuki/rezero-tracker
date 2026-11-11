@@ -2,11 +2,11 @@
 name: Webnovel Translation Monitor
 on:
   schedule:
-    - cron: '*/5 * * * *' # Automatically runs an internal sweep every 5 minutes
-  workflow_dispatch: # Allows you to manually trigger a test block
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
 
 permissions:
-  contents: write # Grants the script permission to commit last_chapter.txt back to your repo
+  contents: write
 
 jobs:
   monitor-site:
@@ -19,32 +19,28 @@ jobs:
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          # Grabs raw HTML from the updates page
           HTML_DATA=$(curl -sL "https://ashtlsrezero.site/updates")
-          
-          # Extracts the newest chapter heading and converts HTML entities (like &#x27;) into normal characters
-          LATEST_CHAPTER=$(echo "$HTML_DATA" | grep -oE "Arc [0-9]+ Chapter [0-9]+[^<]*" | head -n 1 | python3 -c "import sys, html; print(html.unescape(sys.stdin.read().strip()))")
+          LATEST_CHAPTER=$(echo "$HTML_DATA" | grep -oE "<h3[^>]*>[^<]+</h3>" | head -n 1 | sed -E 's/<[^>]+>//g' | python3 -c "import sys, html; print(html.unescape(sys.stdin.read().strip()))")
           
           if [ -n "$LATEST_CHAPTER" ]; then
             echo "Current live release: $LATEST_CHAPTER"
             
-            # Check against the last recorded update file stored in your repo
             if [ ! -f last_chapter.txt ] || [ "$LATEST_CHAPTER" != "$(cat last_chapter.txt)" ]; then
               echo "New chapter drop detected!"
-              
-              # Save the state instantly to prevent repeating
               echo "$LATEST_CHAPTER" > last_chapter.txt
               
-              # Build message cleanly without EOF indentation issues
-              MSG_CONTENT=$(printf "@everyone\n\nthe stars haven’t abandoned us! a new chapter has been translated ✨\n\n📖 **%s**\n🌐 https://ashtlsrezero.site/updates" "$LATEST_CHAPTER")
+              # Routes Arc 10 to @Current Arc Updates and everything else to @Miscellaneous Pings
+              if [[ "$LATEST_CHAPTER" == *"Arc 10"* ]]; then
+                ROLE_PING="<@&1569955443558711296>"
+              else
+                ROLE_PING="<@&1569951370818228275>"
+              fi
               
-              # Safely build payload escaped via jq (using your webhook's Discord avatar)
+              MSG_CONTENT=$(printf "%s\n\nthe stars haven’t abandoned us! a new chapter has been translated ✨\n\n📖 **%s**\n🌐 https://ashtlsrezero.site/updates" "$ROLE_PING" "$LATEST_CHAPTER")
               JSON_PAYLOAD=$(jq -n --arg msg "$MSG_CONTENT" '{username: "Aldebaran", content: $msg}')
               
-              # Fire directly to your channel hook secret
               curl -H "Content-Type: application/json" -X POST -d "$JSON_PAYLOAD" "$DISCORD_WEBHOOK_URL"
               
-              # Commit history state back to git tracking so the bot remembers next time
               git config --global user.name "GitHub Actions"
               git config --global user.email "actions@github.com"
               git add last_chapter.txt
